@@ -6,25 +6,21 @@ const config = {
     clientId: process.env.CLIENT_ID,
     channelId: process.env.CHANNEL_ID,
     bumpInterval: 2 * 60 * 60 * 1000, // 2 heures en millisecondes
-    commands: ['/bump', '/up']
 };
 
 // Vérification des variables d'environnement
 if (!config.token) {
     console.error('❌ ERREUR: Le token Discord n\'est pas défini!');
-    console.error('💡 Assurez-vous de définir la variable d\'environnement DISCORD_TOKEN sur Railway.app');
     process.exit(1);
 }
 
 if (!config.clientId) {
     console.error('❌ ERREUR: Le Client ID n\'est pas défini!');
-    console.error('💡 Assurez-vous de définir la variable d\'environnement CLIENT_ID sur Railway.app');
     process.exit(1);
 }
 
 if (!config.channelId) {
     console.error('❌ ERREUR: L\'ID du salon n\'est pas défini!');
-    console.error('💡 Assurez-vous de définir la variable d\'environnement CHANNEL_ID sur Railway.app');
     process.exit(1);
 }
 
@@ -86,25 +82,20 @@ async function sendBumpCommands() {
         console.log(`🕒 ${new Date().toLocaleString()} - Envoi des commandes de bump...`);
         lastBumpTime = new Date();
         
-        // Envoyer chaque commande avec un délai aléatoire entre 1 et 3 secondes
-        for (const command of config.commands) {
+        // Messages à envoyer (visibles par tous)
+        const bumpMessages = ['/bump', '/up'];
+        
+        for (const message of bumpMessages) {
             const delay = Math.floor(Math.random() * 2000) + 1000; // 1-3 secondes
-            
             await new Promise(resolve => setTimeout(resolve, delay));
             
             // Simuler un comportement humain en tapant
             channel.sendTyping();
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-
-if (command === '/bump') {
-    await channel.send('!bump');
-} else if (command === '/up') {
-    await channel.send('!up');
-} else {
-    await channel.send(command);
-}
-            console.log(`✅ Commande envoyée: ${command}`);
+            // Envoyer le message visible par tous
+            await channel.send(message);
+            console.log(`✅ Message envoyé: ${message}`);
         }
         
         console.log(`✅ Bump terminé! Prochain bump dans 2 heures.`);
@@ -182,7 +173,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             startBumpInterval();
             
             await interaction.reply({
-                content: '🟢 **Bump automatique démarré!**\n\nLe bot enverra automatiquement `/bump` et `/up` toutes les 2 heures dans le salon #bot.',
+                content: '🟢 **Bump automatique démarré!**\n\nLe bot enverra automatiquement `/bump` et `/up` toutes les 2 heures dans le salon #bot.\n\n**Premier bump envoyé immédiatement !**',
                 ephemeral: true
             });
 
