@@ -96,8 +96,14 @@ async function sendBumpCommands() {
             channel.sendTyping();
             await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Envoyer la commande
-            await channel.send(command);
+
+if (command === '/bump') {
+    await channel.send('!bump');
+} else if (command === '/up') {
+    await channel.send('!up');
+} else {
+    await channel.send(command);
+}
             console.log(`✅ Commande envoyée: ${command}`);
         }
         
