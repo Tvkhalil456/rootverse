@@ -1,5 +1,5 @@
 const { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder } = require('discord.js');
-
+ˆ
 // Configuration
 const config = {
     token: process.env.DISCORD_TOKEN,
@@ -174,7 +174,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
             
             await interaction.reply({
                 content: '🟢 **Bump automatique démarré!**\n\nLe bot enverra automatiquement `/bump` et `/up` toutes les 2 heures dans le salon #bot.\n\n**Premier bump envoyé immédiatement !**',
-                ephemeral: true
             });
 
         } else if (interaction.commandName === 'stop') {
