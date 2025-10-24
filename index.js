@@ -97,12 +97,17 @@ function createBumpButtons() {
         );
 }
 
-// Fonction principale de bump
-async function sendBump() {
+// Fonction principale de bump - CORRIGÉE
+async function sendBump(interaction = null) {
     try {
+        console.log(`🔧 Début de la fonction sendBump...`);
+        
         const channel = await client.channels.fetch(config.channelId);
         if (!channel) {
             console.error('❌ Salon non trouvé!');
+            if (interaction && !interaction.replied) {
+                await interaction.editReply({ content: '❌ Salon non trouvé! Vérifiez le CHANNEL_ID.' });
+            }
             return;
         }
 
@@ -110,20 +115,50 @@ async function sendBump() {
         lastBumpTime = new Date();
         nextBumpTime = new Date(lastBumpTime.getTime() + config.bumpInterval);
 
-        // Envoyer le message de bump
+        // Si c'est une interaction, on confirme d'abord
+        if (interaction && !interaction.replied) {
+            await interaction.editReply({ 
+                content: '✅ **BUMP IMMÉDIAT EN COURS...**' 
+            });
+        }
+
+        // Envoyer le message de bump dans le salon cible
         const bumpMessage = await channel.send({
             content: `@everyone 🚀 **C'EST L'HEURE DU BUMP!** 🚀\n\nN'oubliez pas de bump le serveur avec Disboard!\nUtilisez \`/bump\` dans ce salon!`,
             embeds: [createBumpEmbed()],
             components: [createBumpButtons()]
         });
 
-        console.log(`✅ Bump envoyé! Prochain bump à ${nextBumpTime.toLocaleString()}`);
+        console.log(`✅ Bump envoyé! Message ID: ${bumpMessage.id}`);
+        
+        // Mettre à jour le message d'interaction si c'est un bump manuel
+        if (interaction && interaction.replied) {
+            await interaction.editReply({ 
+                content: `✅ **BUMP EFFECTUÉ AVEC SUCCÈS!**\n\nLe message a été envoyé dans <#${config.channelId}>\nProchain bump automatique: <t:${Math.floor(nextBumpTime.getTime() / 1000)}:R>` 
+            });
+        }
 
-        // Programmer le prochain bump
-        scheduleNextBump();
+        // Reprogrammer le prochain bump si le système est actif
+        if (isBumpActive) {
+            scheduleNextBump();
+        }
 
     } catch (error) {
-        console.error('❌ Erreur lors du bump:', error);
+        console.error('❌ Erreur critique lors du bump:', error);
+        
+        // Gérer l'erreur dans l'interaction si possible
+        if (interaction) {
+            if (interaction.replied) {
+                await interaction.editReply({ 
+                    content: `❌ **ERREUR LORS DU BUMP**\n\`\`\`${error.message}\`\`\`` 
+                });
+            } else {
+                await interaction.reply({ 
+                    content: `❌ **ERREUR LORS DU BUMP**\n\`\`\`${error.message}\`\`\``,
+                    ephemeral: true 
+                });
+            }
+        }
     }
 }
 
@@ -154,32 +189,42 @@ async function sendReminder() {
 
 // Programmation du prochain bump
 function scheduleNextBump() {
+    // Nettoyer les anciens intervalles
     if (bumpInterval) clearInterval(bumpInterval);
     if (reminderInterval) clearInterval(reminderInterval);
 
-    bumpInterval = setInterval(sendBump, config.bumpInterval);
+    // Programmer le prochain bump
+    bumpInterval = setInterval(() => sendBump(), config.bumpInterval);
     reminderInterval = setInterval(sendReminder, config.reminderInterval);
+    
+    console.log(`⏰ Prochain bump programmé dans 2 heures`);
 }
 
 // Démarrer le système
 function startBumpSystem() {
-    if (isBumpActive) return;
+    if (isBumpActive) {
+        console.log('⚠️ Système déjà actif');
+        return;
+    }
     
     isBumpActive = true;
     console.log('⏰ Système de bump démarré!');
     
-    // Premier bump immédiat
+    // Premier bump immédiat sans interaction
     sendBump();
 }
 
 // Arrêter le système
 function stopBumpSystem() {
     isBumpActive = false;
-    if (bumpInterval) clearInterval(bumpInterval);
-    if (reminderInterval) clearInterval(reminderInterval);
-    
-    bumpInterval = null;
-    reminderInterval = null;
+    if (bumpInterval) {
+        clearInterval(bumpInterval);
+        bumpInterval = null;
+    }
+    if (reminderInterval) {
+        clearInterval(reminderInterval);
+        reminderInterval = null;
+    }
     nextBumpTime = null;
     
     console.log('🛑 Système de bump arrêté!');
@@ -201,7 +246,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
-// Gestion des commandes slash
+// Gestion des commandes slash - CORRIGÉE
 async function handleSlashCommand(interaction) {
     try {
         switch (interaction.commandName) {
@@ -210,10 +255,15 @@ async function handleSlashCommand(interaction) {
                     await interaction.reply({ content: '⚠️ Le système de bump est déjà actif!', ephemeral: true });
                     return;
                 }
-                startBumpSystem();
+                
                 await interaction.reply({ 
-                    content: '🟢 **SYSTÈME DE BUMP DÉMARRÉ!**\n\nLe bot enverra des rappels automatiques toutes les 2 heures avec des notifications pour bump le serveur!',
+                    content: '🟢 **DÉMARRAGE DU SYSTÈME...**',
                     ephemeral: false 
+                });
+                
+                startBumpSystem();
+                await interaction.editReply({ 
+                    content: '🟢 **SYSTÈME DE BUMP DÉMARRÉ!**\n\nLe bot enverra des rappels automatiques toutes les 2 heures!\n**Premier bump envoyé immédiatement!**' 
                 });
                 break;
 
@@ -222,6 +272,7 @@ async function handleSlashCommand(interaction) {
                     await interaction.reply({ content: '⚠️ Le système de bump n\'est pas actif!', ephemeral: true });
                     return;
                 }
+                
                 stopBumpSystem();
                 await interaction.reply({ 
                     content: '🔴 **SYSTÈME DE BUMP ARRÊTÉ!**\n\nLes rappels automatiques sont désactivés.',
@@ -231,21 +282,28 @@ async function handleSlashCommand(interaction) {
 
             case 'bump-status':
                 const statusEmbed = createBumpEmbed();
-                await interaction.reply({ embeds: [statusEmbed], ephemeral: true });
+                await interaction.reply({ embeds: [statusEmbed], ephemeral: false });
                 break;
 
             case 'bump-now':
-                if (!isBumpActive) {
-                    await interaction.reply({ content: '⚠️ Démarrez d\'abord le système avec `/bump-start`!', ephemeral: true });
-                    return;
-                }
-                await interaction.reply({ content: '🔄 Lancement d\'un bump immédiat...', ephemeral: true });
-                await sendBump();
+                // Répondre immédiatement pour éviter le timeout
+                await interaction.reply({ 
+                    content: '🔄 **LANCEMENT DU BUMP IMMÉDIAT...**',
+                    ephemeral: false 
+                });
+                
+                // Lancer le bump avec l'interaction pour le feedback
+                await sendBump(interaction);
                 break;
         }
     } catch (error) {
         console.error('Erreur commande:', error);
-        await interaction.reply({ content: '❌ Erreur!', ephemeral: true });
+        
+        if (interaction.replied) {
+            await interaction.editReply({ content: '❌ Erreur lors du traitement de la commande!' });
+        } else {
+            await interaction.reply({ content: '❌ Erreur lors du traitement de la commande!', ephemeral: true });
+        }
     }
 }
 
